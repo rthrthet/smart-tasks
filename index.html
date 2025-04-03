@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>نظام إدارة المهام النهائي - الذكي</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
+    <style>
+        :root {
+            --primary: #2ecc71;
+            --secondary: #3498db;
+            --accent: #e67e22;
+            --background: #2c3e50;
+            --text: #ecf0f1;
+            --dark: #34495e;
+            --success: #27ae60;
+            --warning: #f1c40f;
+            --danger: #e74c3c;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Tajawal', sans-serif;
+            background: var(--background);
+            color: var(--text);
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        /* نظام البطاقات */
+        .card {
+            background: var(--dark);
+            border-radius: 15px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            transition: transform 0.3s, box-shadow 0.3s;
+        }
+
+        .card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 6px 12px rgba(0,0,0,0.2);
+        }
+
+        /* شريط التنقل */
+        .navbar {
+            background: var(--dark);
+            padding: 1rem;
+            border-radius: 15px;
+            margin-bottom: 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        /* نظام الشبكة */
+        .grid {
+            display: grid;
+            grid-template-columns: 250px 1fr;
+            gap: 2rem;
+        }
+
+        /* نظام الألوان الديناميكي */
+        .priority-high { border-right: 4px solid var(--danger); }
+        .priority-medium { border-right: 4px solid var(--warning); }
+        .priority-low { border-right: 4px solid var(--success); }
+
+        /* الرسوم المتحركة */
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .animate {
+            animation: fadeIn 0.5s ease-out;
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar">
+        <h1><i class="fas fa-rocket"></i> نظام المهام الذكي</h1>
+        <div class="controls">
+            <button id="themeToggle"><i class="fas fa-moon"></i></button>
+            <button id="syncButton"><i class="fas fa-sync"></i></button>
+        </div>
+    </nav>
+
+    <div class="container">
+        <div class="grid">
+            <!-- الشريط الجانبي -->
+            <aside class="sidebar">
+                <div class="card">
+                    <h3><i class="fas fa-plus"></i> إنشاء جديد</h3>
+                    <button class="btn" onclick="showTaskForm()">مهمة جديدة</button>
+                    <button class="btn" onclick="showProjectForm()">مشروع جديد</button>
+                </div>
+
+                <div class="card">
+                    <h3><i class="fas fa-chart-pie"></i> الإحصائيات</h3>
+                    <div id="liveStats"></div>
+                </div>
+
+                <div class="card ai-panel">
+                    <h3><i class="fas fa-robot"></i> المساعد الذكي</h3>
+                    <div id="aiRecommendations"></div>
+                </div>
+            </aside>
+
+            <!-- المحتوى الرئيسي -->
+            <main class="main-content">
+                <div class="card pomodoro-card">
+                    <div class="pomodoro-header">
+                        <h2><i class="fas fa-clock"></i> مؤقت بومودورو</h2>
+                        <div class="pomodoro-controls">
+                            <select id="workDuration">
+                                <option value="25">25 دقيقة عمل</option>
+                                <option value="45">45 دقيقة عمل</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="pomodoro-timer" id="timer">25:00</div>
+                    <div class="timer-controls">
+                        <button class="btn" onclick="startTimer()"><i class="fas fa-play"></i></button>
+                        <button class="btn" onclick="pauseTimer()"><i class="fas fa-pause"></i></button>
+                        <button class="btn" onclick="resetTimer()"><i class="fas fa-redo"></i></button>
+                    </div>
+                </div>
+
+                <div class="card tasks-card">
+                    <div class="tasks-filter">
+                        <input type="text" id="search" placeholder="بحث في المهام...">
+                        <select id="filter">
+                            <option value="all">الكل</option>
+                            <option value="high">عاجل</option>
+                            <option value="completed">مكتمل</option>
+                        </select>
+                    </div>
+                    <div class="tasks-list" id="tasksContainer"></div>
+                </div>
+
+                <div class="card analytics-card">
+                    <div id="productivityChart"></div>
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <!-- النماذج المنبثقة -->
+    <div id="taskModal" class="modal">
+        <!-- محتوى نموذج المهمة -->
+    </div>
+
+    <script>
+        // النظام الكامل
+        class TaskManager {
+            constructor() {
+                this.tasks = JSON.parse(localStorage.getItem('tasks')) || [];
+                this.currentTimer = null;
+                this.isWorking = true;
+                this.init();
+            }
+
+            init() {
+                this.renderTasks();
+                this.initCharts();
+                this.setupEventListeners();
+                this.checkAchievements();
+                this.updateLiveStats();
+            }
+
+            addTask(task) {
+                task.id = Date.now();
+                task.createdAt = new Date();
+                task.completed = false;
+                this.tasks.push(task);
+                this.save();
+            }
+
+            completeTask(id) {
+                this.tasks = this.tasks.map(task => 
+                    task.id === id ? {...task, completed: true} : task
+                );
+                this.save();
+            }
+
+            save() {
+                localStorage.setItem('tasks', JSON.stringify(this.tasks));
+                this.renderTasks();
+                this.updateLiveStats();
+                this.generateAIRecommendations();
+            }
+
+            renderTasks() {
+                const container = document.getElementById('tasksContainer');
+                container.innerHTML = this.tasks.map(task => `
+                    <div class="task-item animate priority-${task.priority}">
+                        <div class="task-header">
+                            <h4>${task.title}</h4>
+                            <button onclick="taskManager.completeTask(${task.id})">
+                                <i class="fas fa-check"></i>
+                            </button>
+                        </div>
+                        <p>${task.description}</p>
+                        <div class="task-footer">
+                            <span class="badge">${task.category}</span>
+                            <span class="due-date">${new Date(task.dueDate).toLocaleDateString('ar-EG')}</span>
+                        </div>
+                    </div>
+                `).join('');
+            }
+
+            generateAIRecommendations() {
+                const incomplete = this.tasks.filter(t => !t.completed);
+                const recommendations = `
+                    <p>المهام العالقة: ${incomplete.length}</p>
+                    <p>اقتراح: ${this.calculateOptimalSchedule()}</p>
+                `;
+                document.getElementById('aiRecommendations').innerHTML = recommendations;
+            }
+
+            calculateOptimalSchedule() {
+                // خوارزمية ذكاء اصطناعي مبسطة
+                const highPriority = this.tasks.filter(t => t.priority === 'high' && !t.completed);
+                return `ركز على المهمة: ${highPriority[0]?.title || 'لا توجد مهام عاجلة'}`;
+            }
+
+            initCharts() {
+                // تهيئة الرسوم البيانية باستخدام ApexCharts
+                const options = {
+                    chart: { type: 'bar' },
+                    series: [{ data: [30, 40, 35] }],
+                    xaxis: { categories: ['مهام', 'إنجازات', 'جلسات'] }
+                };
+                new ApexCharts(document.querySelector('#productivityChart'), options).render();
+            }
+
+            updateLiveStats() {
+                const stats = `
+                    <p>المهام الكلية: ${this.tasks.length}</p>
+                    <p>المكتملة: ${this.tasks.filter(t => t.completed).length}</p>
+                    <p>الإنتاجية: ${this.calculateProductivity()}%</p>
+                `;
+                document.getElementById('liveStats').innerHTML = stats;
+            }
+
+            calculateProductivity() {
+                const completed = this.tasks.filter(t => t.completed).length;
+                return this.tasks.length > 0 ? Math.round((completed / this.tasks.length) * 100) : 0;
+            }
+
+            setupEventListeners() {
+                document.getElementById('themeToggle').addEventListener('click', () => {
+                    document.body.classList.toggle('dark-mode');
+                });
+            }
+        }
+
+        // تهيئة النظام
+        const taskManager = new TaskManager();
+
+        // نظام المؤقت
+        let timer;
+        function startTimer() {
+            let time = parseInt(document.getElementById('workDuration').value) * 60;
+            timer = setInterval(() => {
+                time--;
+                document.getElementById('timer').textContent = 
+                    `${Math.floor(time/60)}:${(time%60).toString().padStart(2,'0')}`;
+                if(time <= 0) clearInterval(timer);
+            }, 1000);
+        }
+
+        // نماذج الإدخال
+        function showTaskForm() {
+            // تنفيذ نموذج إدخال المهمة
+        }
+    </script>
+</body>
+</html>
